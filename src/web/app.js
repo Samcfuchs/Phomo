@@ -4440,10 +4440,22 @@ function addTextElement() {
   setTimeout(() => startInlineEdit(element.id), 50);
 }
 
-/**
- * Add a new image element
- */
-async function addImageElement(file) {
+self.addEventListener('fetch', (e) => {
+  const url = new URL(e.request.url);
+  if (e.request.method === 'POST' && url.pathname.endsWith('/share-target')) {
+    e.respondWith((async () => {
+      const file = (await e.request.formData()).get('image');
+      const cache = await caches.open('share-inbox');
+      await cache.put('shared-image', new Response(file, { headers: { 'Content-Type': file.type } }));
+      return Response.redirect('./?shared=1', 303);
+    })());
+  }
+});
+
+/*
+ * Handle images and pdfs
+*/
+async function fileToImage(file) {
   // Validate file at function boundary
   const validation = validateImageFile(file);
   if (!validation.valid) {
@@ -4456,6 +4468,22 @@ async function addImageElement(file) {
     const { dataUrl, width, height } = isPDF
       ? await state.renderer.loadPDFFile(file)
       : await state.renderer.loadImageFile(file);
+  } catch (e) {
+    logError(e, 'fileToImage');
+    setStatus(file.type === 'application/pdf' ? 'Failed to load PDF' : 'Failed to load image');
+  }
+
+  return { dataUrl, width, height };
+}
+
+/**
+ * Add a new image element
+ */
+async function addImageElement(file) {
+
+  let {dataUrl, width, height} = fileToImage(file)
+
+  try {
 
     // Use native size if it fits, otherwise scale down to fit
     const dims = state.renderer.getSingleLabelDimensions();
@@ -7994,6 +8022,18 @@ function init() {
       }
     }, 150);
   });
+
+
+  if (new URLSearchParams(location.search).has('shared')) {
+  const cache = await caches.open('share-inbox');
+  const res = await cache.match('shared-image');
+  if (res) {
+    const blob = await res.blob();
+    await addImageFromFile(new File([blob], 'shared', { type: blob.type }));
+    await cache.delete('shared-image');
+  }
+  history.replaceState(null, '', './');
+}
 
   // Keyboard shortcuts
   document.addEventListener('keydown', handleKeyDown);
