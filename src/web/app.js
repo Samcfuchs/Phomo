@@ -8024,14 +8024,20 @@ function init() {
   });
 
 
-  if (new URLSearchParams(location.search).has('shared')) {
-  const cache = await caches.open('share-inbox');
-  const res = await cache.match('shared-image');
-  if (res) {
-    const blob = await res.blob();
-    await addImageFromFile(new File([blob], 'shared', { type: blob.type }));
-    await cache.delete('shared-image');
-  }
+  async function checkForImage() {
+    
+    if (new URLSearchParams(location.search).has('shared')) {
+      const cache = await caches.open('share-inbox');
+      const res = await cache.match('shared-image');
+      if (res) {
+        const blob = await res.blob();
+        await addImageFromFile(new File([blob], 'shared', { type: blob.type }));
+        await cache.delete('shared-image');
+      }
+    }
+
+  checkForImage()
+
   history.replaceState(null, '', './');
 }
 
